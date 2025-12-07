@@ -108,7 +108,7 @@ const start = async () => {
     const totalCount = parseInt(countResult.rows[0].count);
     console.log('PostgreSQL connection successful.', totalCount);
 
-    await server.listen({ port: 3000 });
+    await server.listen({ port: 3000, host: '0.0.0.0' });
     console.info(`Fastify server listening on 3000`);
     
     connectBinance(handleLiquidationData);
