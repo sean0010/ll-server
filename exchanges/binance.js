@@ -2,7 +2,7 @@ const TARGET_SYMBOLS = require('../config').TARGET_SYMBOLS;
 const WebSocket = require('ws');
 
 let reconnectTimer = null;
-function connect(broadcast) {
+function connect(connectBinance) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
@@ -19,7 +19,7 @@ function connect(broadcast) {
         const o = rawData.o;
 
         if (TARGET_SYMBOLS.includes(o.s)) {          
-          broadcast({
+          connectBinance({
             ...o,
             ex: 'BINANCE',
           }); 

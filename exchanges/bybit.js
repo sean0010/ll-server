@@ -3,7 +3,7 @@ const WebSocket = require('ws');
 
 let reconnectTimer = null;
 let pingInterval;
-function connect(broadcast) {
+function connect(connectBinance) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
@@ -39,9 +39,8 @@ function connect(broadcast) {
             T: liquidation.T, // timestamp
             ex: 'BYBIT'
           };
-          console.log('Bybit o:',o);
 
-          broadcast(o);
+          connectBinance(o);
         });
       }
     } catch (error) {
