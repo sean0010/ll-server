@@ -28,7 +28,7 @@ server.register(websocket);
 async function handleLiquidationData(o) {
   const exchange = o.ex;
   const symbol = o.s;
-  const side = o.S.toUpperCase() === 'BUY'; 
+  const side = o.S;
   const price = o.p;
   const quantity = o.q;
   const time = new Date(o.T).toISOString();

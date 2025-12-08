@@ -2,7 +2,7 @@ const TARGET_SYMBOLS = require('../config').TARGET_SYMBOLS;
 const WebSocket = require('ws');
 
 let reconnectTimer = null;
-function connect(connectBinance) {
+function connect(handleLiquidationData) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
@@ -19,8 +19,9 @@ function connect(connectBinance) {
         const o = rawData.o;
 
         if (TARGET_SYMBOLS.includes(o.s)) {          
-          connectBinance({
+          handleLiquidationData({
             ...o,
+            S: o.S === 'BUY',
             ex: 'BINANCE',
           }); 
         }

@@ -3,7 +3,7 @@ const WebSocket = require('ws');
 
 let reconnectTimer = null;
 let pingInterval;
-function connect(connectBinance) {
+function connect(handleLiquidationData) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
@@ -33,14 +33,14 @@ function connect(connectBinance) {
         msg.data.forEach((liquidation) => {
           const o = {
             s: liquidation.s, // symbol
-            S: liquidation.S, // Buy: 롱 청산, Sell: 숏 청산
+            S: liquidation.S !== 'Buy', // Buy: long position has been liquidated
             p: liquidation.p, // price
             q: liquidation.v, // volume
             T: liquidation.T, // timestamp
             ex: 'BYBIT'
           };
 
-          connectBinance(o);
+          handleLiquidationData(o);
         });
       }
     } catch (error) {
