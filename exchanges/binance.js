@@ -2,7 +2,7 @@ const TARGET_SYMBOLS = require('../config').TARGET_SYMBOLS;
 const WebSocket = require('ws');
 
 let reconnectTimer = null;
-function connect(handleLiquidationData) {
+function connect(cb) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
@@ -19,7 +19,7 @@ function connect(handleLiquidationData) {
         const o = rawData.o;
 
         if (TARGET_SYMBOLS.includes(o.s)) {          
-          handleLiquidationData({
+          cb({
             ...o,
             S: o.S === 'BUY',
             ex: 'BINANCE',
@@ -37,7 +37,7 @@ function connect(handleLiquidationData) {
 
   ws.on('close', (code, reason) => {
     console.warn(`Binance WebSocket closed. Code: ${code}, Reason: ${reason.toString()}`);
-    reconnectTimer = setTimeout(connect, 5000); 
+    reconnectTimer = setTimeout(() => connect(cb), 5000);
   });
 }
 module.exports = connect;

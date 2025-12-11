@@ -3,7 +3,8 @@ const WebSocket = require('ws');
 
 let reconnectTimer = null;
 let pingInterval;
-function connect(handleLiquidationData) {
+
+function connect(cb) {
   clearTimeout(reconnectTimer);
 
   const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
@@ -22,13 +23,13 @@ function connect(handleLiquidationData) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({op: 'ping'}));
       }
-    }, 29000);
+    }, 20000);
   });
 
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);
-      if (msg.op !== 'ping') console.log('Bybit msg:', msg);
+
       if (msg.topic && msg.topic.startsWith('allLiquidation') && msg.data) {
         msg.data.forEach((liquidation) => {
           const o = {
@@ -40,7 +41,7 @@ function connect(handleLiquidationData) {
             ex: 'BYBIT'
           };
 
-          handleLiquidationData(o);
+          cb(o);
         });
       }
     } catch (error) {
@@ -54,7 +55,7 @@ function connect(handleLiquidationData) {
 
   ws.on('close', (code, reason) => {
     console.warn(`Bybit WebSocket closed. Code: ${code}, Reason: ${reason.toString()}`);
-    reconnectTimer = setTimeout(connect, 5000);
+    reconnectTimer = setTimeout(() => connect(cb), 5000);
   });
 }
 module.exports = connect;
