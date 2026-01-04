@@ -35,6 +35,7 @@ async function handleLiquidationData(o) {
   const query = `
     INSERT INTO public.liquidations (exchange, symbol, side, price, quantity, time)
     VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (exchange, symbol, side, price, quantity, time) DO NOTHING
   `;
   const values = [exchange, symbol, side, price, quantity, time];
 
