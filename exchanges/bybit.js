@@ -1,26 +1,6 @@
 const TARGET_COINS = require('../config').TARGET_COINS;
 const WebSocket = require('ws');
 
-// Check if symbol is for a target coin (BTC or ETH)
-// Must match exactly: BTC or ETH followed by USDT, USDC, USD, or underscore
-function isTargetCoin(symbol) {
-  if (!symbol) return false;
-  const upperSymbol = symbol.toUpperCase();
-  
-  // Match BTC: BTCUSDT, BTCUSDC, BTCUSD, etc.
-  if (upperSymbol.match(/^BTC(USDT|USDC|USD|USD_|USDT_|USDC_)/)) {
-    return TARGET_COINS.includes('BTC');
-  }
-  
-  // Match ETH: ETHUSDT, ETHUSDC, ETHUSD, etc.
-  // But NOT ETHFI, ETHEREUM, etc.
-  if (upperSymbol.match(/^ETH(USDT|USDC|USD|USD_|USDT_|USDC_)/)) {
-    return TARGET_COINS.includes('ETH');
-  }
-  
-  return false;
-}
-
 let reconnectTimer = null;
 let pingInterval;
 
@@ -32,15 +12,17 @@ function connect(cb) {
   ws.on('open', () => {
     console.log('Connected to Bybit WebSocket');    
 
-    // Bybit requires subscribing to specific symbols
-    // We'll subscribe to all possible BTC and ETH symbols using wildcard pattern
-    // Bybit v5 API supports subscribing to multiple symbols at once
-    const subscription = {
-      op: 'subscribe',
-      args: ['allLiquidation'], // Subscribe to all liquidations, filter by coin in handler
-    };
-    ws.send(JSON.stringify(subscription));
-    console.log('Subscribed to Bybit allLiquidation (will filter by coin)');
+    const channels = TARGET_COINS.map(coin => `allLiquidation.${coin}USDT`);
+    
+    if (channels.length > 0) {
+      const subscription = {
+        op: 'subscribe',
+        args: channels,
+      };
+      ws.send(JSON.stringify(subscription));
+    } else {
+      console.warn('No target coins to subscribe for Bybit');
+    }
 
     pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -53,25 +35,32 @@ function connect(cb) {
     try {
       const msg = JSON.parse(data);
 
-      if (msg.topic && msg.topic.startsWith('allLiquidation') && msg.data) {
-        msg.data.forEach((liquidation) => {
-          // Filter by target coins (BTC or ETH)
-          if (isTargetCoin(liquidation.s)) {
-            const o = {
-              s: liquidation.s, // original symbol from Bybit
-              S: liquidation.S !== 'Buy', // Buy: long position has been liquidated
-              p: liquidation.p, // price
-              q: liquidation.v, // volume
-              T: liquidation.T, // timestamp
-              ex: 'BYBIT'
-            };
+      // Bybit은 'pong' 응답을 보내므로 필터링
+      if (msg.ret_msg === 'pong' || msg.op === 'pong') return;
 
-            cb(o);
-          }
+      if (msg.topic && msg.topic.startsWith('allLiquidation') && msg.data) {
+        // Bybit은 data가 배열 형태로 올 수 있음
+        const liquidations = Array.isArray(msg.data) ? msg.data : [msg.data];
+
+        liquidations.forEach((liq) => {
+          const o = {
+            s: liq.s, // Symbol (BTCUSDT)
+            // 💡 Side 매핑: Bybit 'Buy' = Long 청산(시장가 매도 발생) -> false (SELL)
+            // Bybit 'Sell' = Short 청산(시장가 매수 발생) -> true (BUY)
+            S: liq.S === 'Sell', 
+            p: parseFloat(liq.p), // 가격을 숫자로 변환
+            q: parseFloat(liq.v), // 수량(v)을 숫자로 변환
+            T: Number(liq.T),    // 💡 문자열 타임스탬프를 숫자로 확실히 변환 (중요)
+            ex: 'BYBIT'
+          };
+
+          // console.log('Parsed Bybit Data:', o);
+          cb(o); // server.js의 handleLiquidationData 호출
         });
       }
     } catch (error) {
-      console.error('Error processing Bybit message:', error);
+      console.error('❌ Bybit message error:', error.message);
+      console.error('Raw data:', data.toString());
     }
   });
 

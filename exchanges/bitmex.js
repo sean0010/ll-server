@@ -68,7 +68,7 @@ function connect(cb) {
               s: liquidation.symbol, // original BitMEX symbol
               S: liquidation.side === 'Buy', // Buy = short liquidation (long position liquidated)
               p: parseFloat(liquidation.price),
-              q: parseFloat(liquidation.leavesQty || liquidation.size || 0),
+              q: parseFloat(liquidation.leavesQty) / parseFloat(liquidation.price),
               T: liquidation.timestamp ? new Date(liquidation.timestamp).getTime() : Date.now(),
               ex: 'BITMEX'
             };
