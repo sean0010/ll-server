@@ -1,1 +1,1 @@
-module.exports.TARGET_SYMBOLS = ['BTCUSDT', 'ETHUSDT'];
+module.exports.TARGET_COINS = ['BTC', 'ETH'];

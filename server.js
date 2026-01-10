@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 
 const connectBinance = require('./exchanges/binance');
 const connectBybit = require('./exchanges/bybit');
+const connectBitmex = require('./exchanges/bitmex');
 
 const server = fastify({ logger: true });
 
@@ -25,6 +26,18 @@ pool.on('error', (err) => {
 server.register(cors);
 server.register(websocket);
 
+function extractCoin(symbol) {
+  if (!symbol) return null;
+  const upperSymbol = symbol.toUpperCase();
+  if (upperSymbol.startsWith('BTC') || upperSymbol.startsWith('XBT')) {
+    return 'BTC';
+  }
+  if (upperSymbol.startsWith('ETH')) {
+    return 'ETH';
+  }
+  return null;
+}
+
 async function handleLiquidationData(o) {
   const exchange = o.ex;
   const symbol = o.s;
@@ -32,12 +45,14 @@ async function handleLiquidationData(o) {
   const price = o.p;
   const quantity = o.q;
   const time = new Date(o.T).toISOString();
+  const coin = extractCoin(symbol);
+  
   const query = `
-    INSERT INTO public.liquidations (exchange, symbol, side, price, quantity, time)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO public.liquidations (exchange, symbol, side, price, quantity, time, coin)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (exchange, symbol, side, price, quantity, time) DO NOTHING
   `;
-  const values = [exchange, symbol, side, price, quantity, time];
+  const values = [exchange, symbol, side, price, quantity, time, coin];
 
   try {
     await pool.query(query, values);
@@ -72,7 +87,7 @@ server.get('/api/v1/liquidations', async (req, reply) => {
 
   try {
     const result = await pool.query(`
-      SELECT id,exchange,symbol,side,price,quantity,time
+      SELECT id,exchange,symbol,side,price,quantity,time,coin
       FROM public.liquidations
       WHERE public.liquidations.symbol=$1
       ORDER BY time DESC
@@ -114,6 +129,7 @@ const start = async () => {
     
     connectBinance(handleLiquidationData);
     connectBybit(handleLiquidationData);
+    connectBitmex(handleLiquidationData);
   } catch (err) {
     console.error(err);
     process.exit(1);

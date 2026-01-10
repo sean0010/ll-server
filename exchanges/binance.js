@@ -1,5 +1,12 @@
-const TARGET_SYMBOLS = require('../config').TARGET_SYMBOLS;
+const TARGET_COINS = require('../config').TARGET_COINS;
 const WebSocket = require('ws');
+
+// Check if symbol is for a target coin (BTC or ETH)
+function isTargetCoin(symbol) {
+  if (!symbol) return false;
+  const upperSymbol = symbol.toUpperCase();
+  return TARGET_COINS.some(coin => upperSymbol.startsWith(coin));
+}
 
 let reconnectTimer = null;
 function connect(cb) {
@@ -18,7 +25,8 @@ function connect(cb) {
       if (rawData.e === 'forceOrder' && rawData.o) {
         const o = rawData.o;
 
-        if (TARGET_SYMBOLS.includes(o.s)) {          
+        // Check if symbol is for BTC or ETH
+        if (isTargetCoin(o.s)) {
           cb({
             ...o,
             S: o.S === 'BUY',
