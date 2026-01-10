@@ -2,18 +2,25 @@ const TARGET_COINS = require('../config').TARGET_COINS;
 const WebSocket = require('ws');
 
 // Check if BitMEX symbol is for a target coin (BTC or ETH)
-// BitMEX uses XBT for BTC
+// BitMEX uses XBT for BTC, and ETH for ETH
+// Match XBT contracts (XBTUSD, XBTU22, etc.) and ETH contracts (ETHUSD, ETHU22, etc.)
+// But NOT ETHFI or other ETH-prefixed tokens
 function isTargetCoin(bitmexSymbol) {
   if (!bitmexSymbol) return false;
   const upperSymbol = bitmexSymbol.toUpperCase();
+  
   // Check if it's a BTC contract (starts with XBT)
   if (upperSymbol.startsWith('XBT')) {
     return TARGET_COINS.includes('BTC');
   }
-  // Check if it's an ETH contract (starts with ETH)
-  if (upperSymbol.startsWith('ETH')) {
+  
+  // Check if it's an ETH contract (ETHUSD, ETHU22, etc.)
+  // But NOT ETHFI or other tokens
+  // BitMEX typically uses ETHUSD for perpetual and ETHU22, ETHZ22, etc. for quarterly
+  if (upperSymbol.match(/^ETH(USD|U\d{2}|Z\d{2}|M\d{2}|H\d{2})/)) {
     return TARGET_COINS.includes('ETH');
   }
+  
   return false;
 }
 

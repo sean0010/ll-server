@@ -2,10 +2,23 @@ const TARGET_COINS = require('../config').TARGET_COINS;
 const WebSocket = require('ws');
 
 // Check if symbol is for a target coin (BTC or ETH)
+// Must match exactly: BTC or ETH followed by USDT, USDC, USD, or underscore
 function isTargetCoin(symbol) {
   if (!symbol) return false;
   const upperSymbol = symbol.toUpperCase();
-  return TARGET_COINS.some(coin => upperSymbol.startsWith(coin));
+  
+  // Match BTC: BTCUSDT, BTCUSDC, BTCUSD_PERPETUAL, BTCUSD_QUARTER, etc.
+  if (upperSymbol.match(/^BTC(USDT|USDC|USD|USD_|USDT_|USDC_)/)) {
+    return TARGET_COINS.includes('BTC');
+  }
+  
+  // Match ETH: ETHUSDT, ETHUSDC, ETHUSD_PERPETUAL, ETHUSD_QUARTER, etc.
+  // But NOT ETHFI, ETHEREUM, etc.
+  if (upperSymbol.match(/^ETH(USDT|USDC|USD|USD_|USDT_|USDC_)/)) {
+    return TARGET_COINS.includes('ETH');
+  }
+  
+  return false;
 }
 
 let reconnectTimer = null;

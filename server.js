@@ -29,12 +29,18 @@ server.register(websocket);
 function extractCoin(symbol) {
   if (!symbol) return null;
   const upperSymbol = symbol.toUpperCase();
-  if (upperSymbol.startsWith('BTC') || upperSymbol.startsWith('XBT')) {
+  
+  // Match BTC: BTCUSDT, BTCUSDC, BTCUSD_PERPETUAL, etc. or XBT (BitMEX)
+  if (upperSymbol.match(/^BTC(USDT|USDC|USD|USD_|USDT_|USDC_)/) || upperSymbol.startsWith('XBT')) {
     return 'BTC';
   }
-  if (upperSymbol.startsWith('ETH')) {
+  
+  // Match ETH: ETHUSDT, ETHUSDC, ETHUSD_PERPETUAL, etc.
+  // But NOT ETHFI, ETHEREUM, etc.
+  if (upperSymbol.match(/^ETH(USDT|USDC|USD|USD_|USDT_|USDC_)/)) {
     return 'ETH';
   }
+  
   return null;
 }
 
@@ -48,11 +54,11 @@ async function handleLiquidationData(o) {
   const coin = extractCoin(symbol);
   
   const query = `
-    INSERT INTO public.liquidations (exchange, symbol, side, price, quantity, time, coin)
+    INSERT INTO public.liquidations (exchange, coin, symbol, side, price, quantity, time)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (exchange, symbol, side, price, quantity, time) DO NOTHING
   `;
-  const values = [exchange, symbol, side, price, quantity, time, coin];
+  const values = [exchange, coin, symbol, side, price, quantity, time];
 
   try {
     await pool.query(query, values);
@@ -70,9 +76,9 @@ async function handleLiquidationData(o) {
 }
 
 server.get('/api/v1/liquidations', async (req, reply) => {
-  const symbol = req.query.symbol;
-  if (!symbol) {
-    return reply.status(400).send({ error: `parameter symbol required` });
+  const coin = req.query.coin;
+  if (!coin) {
+    return reply.status(400).send({ error: `parameter coin required` });
   }
   const limit = parseInt(req.query.limit) || 100;
   const offset = parseInt(req.query.offset) || 0;
@@ -87,12 +93,12 @@ server.get('/api/v1/liquidations', async (req, reply) => {
 
   try {
     const result = await pool.query(`
-      SELECT id,exchange,symbol,side,price,quantity,time,coin
+      SELECT id,exchange,symbol,side,price,quantity,time
       FROM public.liquidations
-      WHERE public.liquidations.symbol=$1
+      WHERE public.liquidations.coin=$1
       ORDER BY time DESC
-      LIMIT $2 OFFSET $3;`, [symbol, limit, offset]);
-    const countResult = await pool.query('SELECT COUNT(*) FROM public.liquidations WHERE public.liquidations.symbol=$1', [symbol]);
+      LIMIT $2 OFFSET $3;`, [coin, limit, offset]);
+    const countResult = await pool.query('SELECT COUNT(*) FROM public.liquidations WHERE public.liquidations.coin=$1', [coin]);
     const totalCount = parseInt(countResult.rows[0].count);
 
     reply.send({
