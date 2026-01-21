@@ -60,15 +60,34 @@ function connect(cb) {
         msg.data.forEach((liquidation) => {
           // Check if this is a BTC or ETH related contract
           if (isTargetCoin(liquidation.symbol)) {
-            // Use original BitMEX symbol (e.g., XBTUSD, ETHUSD, XBTU22, etc.)
+            // Use original BitMEX symbol (e.g., XBTUSD, ETHUSD, XBTUSDT, ETHUSDT, etc.)
             // BitMEX side: 'Buy' means long position was liquidated (short liquidation)
             //              'Sell' means short position was liquidated (long liquidation)
             // Our format: S = true means short liquidation, S = false means long liquidation
+            
+            const symbol = liquidation.symbol.toUpperCase();
+            const isUSDT = symbol.includes('USDT');
+            const price = parseFloat(liquidation.price);
+            const leavesQty = parseFloat(liquidation.leavesQty);
+            
+            // Calculate quantity based on contract type:
+            // - USD pairs (inverse): leavesQty is in USD, quantity = leavesQty / price
+            // - USDT pairs (linear): leavesQty is in contracts, quantity = leavesQty / 1,000,000
+            //   (typical underlyingToPositionMultiplier for USDT pairs is 1,000,000)
+            let quantity;
+            if (isUSDT) {
+              // USDT linear contracts: contract size is typically 0.000001 BTC/ETH per contract
+              quantity = leavesQty / 1000000;
+            } else {
+              // USD inverse contracts: leavesQty is USD value, divide by price to get BTC/ETH
+              quantity = leavesQty / price;
+            }
+            
             const o = {
               s: liquidation.symbol, // original BitMEX symbol
               S: liquidation.side === 'Buy', // Buy = short liquidation (long position liquidated)
-              p: parseFloat(liquidation.price),
-              q: parseFloat(liquidation.leavesQty) / parseFloat(liquidation.price),
+              p: price,
+              q: quantity,
               T: liquidation.timestamp ? new Date(liquidation.timestamp).getTime() : Date.now(),
               ex: 'BITMEX'
             };
