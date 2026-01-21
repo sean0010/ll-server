@@ -91,14 +91,52 @@ server.get('/api/v1/liquidations', async (req, reply) => {
     return reply.status(400).send({ error: 'Offset cannot be negative' });
   }
 
+  // Parse exchanges parameter (optional, comma-separated)
+  let exchanges = null;
+  if (req.query.exchanges) {
+    exchanges = req.query.exchanges
+      .split(',')
+      .map(ex => ex.trim().toUpperCase())
+      .filter(ex => ex.length > 0);
+    
+    // Validate exchange names
+    const validExchanges = require('./config').EXCHANGES;
+    const invalidExchanges = exchanges.filter(ex => !validExchanges.includes(ex));
+    if (invalidExchanges.length > 0) {
+      return reply.status(400).send({ 
+        error: `Invalid exchange names: ${invalidExchanges.join(', ')}. Valid exchanges: ${validExchanges.join(', ')}` 
+      });
+    }
+  }
+
   try {
-    const result = await pool.query(`
+    let queryParams = [coin];
+    let whereClause = 'WHERE public.liquidations.coin=$1';
+    
+    // Add exchange filter if provided
+    if (exchanges && exchanges.length > 0) {
+      whereClause += ' AND public.liquidations.exchange = ANY($2::text[])';
+      queryParams.push(exchanges);
+    }
+
+    // Build SELECT query
+    const selectQuery = `
       SELECT id,exchange,symbol,side,price,quantity,time
       FROM public.liquidations
-      WHERE public.liquidations.coin=$1
+      ${whereClause}
       ORDER BY time DESC
-      LIMIT $2 OFFSET $3;`, [coin, limit, offset]);
-    const countResult = await pool.query('SELECT COUNT(*) FROM public.liquidations WHERE public.liquidations.coin=$1', [coin]);
+      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+    `;
+    queryParams.push(limit, offset);
+
+    const result = await pool.query(selectQuery, queryParams);
+
+    // Build COUNT query with same filters
+    const countQuery = `SELECT COUNT(*) FROM public.liquidations ${whereClause}`;
+    const countParams = exchanges && exchanges.length > 0 
+      ? [coin, exchanges] 
+      : [coin];
+    const countResult = await pool.query(countQuery, countParams);
     const totalCount = parseInt(countResult.rows[0].count);
 
     reply.send({
