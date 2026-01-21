@@ -81,12 +81,30 @@ server.get('/api/v1/liquidations', async (req, reply) => {
     return reply.status(400).send({ error: `parameter coin required` });
   }
   const limit = parseInt(req.query.limit) || 100;
-  const offset = parseInt(req.query.offset) || 0;
   const maxLimit = 500; 
 
   if (limit > maxLimit) {
     return reply.status(400).send({ error: `Limit cannot exceed ${maxLimit}` });
   }
+
+  // Parse cursor parameter (optional, ISO timestamp string)
+  let cursor = null;
+  if (req.query.cursor) {
+    try {
+      // Validate cursor is a valid ISO timestamp
+      const cursorDate = new Date(req.query.cursor);
+      if (isNaN(cursorDate.getTime())) {
+        return reply.status(400).send({ error: 'Invalid cursor format. Expected ISO timestamp.' });
+      }
+      cursor = cursorDate.toISOString();
+    } catch (err) {
+      return reply.status(400).send({ error: 'Invalid cursor format. Expected ISO timestamp.' });
+    }
+  }
+
+  // Parse offset parameter (optional, for backward compatibility)
+  // If cursor is provided, offset is ignored
+  const offset = cursor ? 0 : (parseInt(req.query.offset) || 0);
   if (offset < 0) {
     return reply.status(400).send({ error: 'Offset cannot be negative' });
   }
@@ -112,37 +130,93 @@ server.get('/api/v1/liquidations', async (req, reply) => {
   try {
     let queryParams = [coin];
     let whereClause = 'WHERE public.liquidations.coin=$1';
+    let paramIndex = 1;
     
     // Add exchange filter if provided
     if (exchanges && exchanges.length > 0) {
-      whereClause += ' AND public.liquidations.exchange = ANY($2::text[])';
+      paramIndex++;
+      whereClause += ` AND public.liquidations.exchange = ANY($${paramIndex}::text[])`;
       queryParams.push(exchanges);
     }
 
+    // Add cursor filter if provided (cursor-based pagination)
+    if (cursor) {
+      paramIndex++;
+      whereClause += ` AND public.liquidations.time < $${paramIndex}`;
+      queryParams.push(cursor);
+    }
+
     // Build SELECT query
-    const selectQuery = `
+    const limitParamIndex = paramIndex + 1;
+    const offsetParamIndex = cursor ? null : paramIndex + 2;
+    
+    let selectQuery = `
       SELECT id,exchange,symbol,side,price,quantity,time
       FROM public.liquidations
       ${whereClause}
       ORDER BY time DESC
-      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+      LIMIT $${limitParamIndex}
     `;
-    queryParams.push(limit, offset);
+    
+    if (offsetParamIndex) {
+      selectQuery += ` OFFSET $${offsetParamIndex}`;
+      queryParams.push(limit, offset);
+    } else {
+      queryParams.push(limit);
+    }
 
     const result = await pool.query(selectQuery, queryParams);
 
-    // Build COUNT query with same filters
-    const countQuery = `SELECT COUNT(*) FROM public.liquidations ${whereClause}`;
-    const countParams = exchanges && exchanges.length > 0 
-      ? [coin, exchanges] 
-      : [coin];
-    const countResult = await pool.query(countQuery, countParams);
-    const totalCount = parseInt(countResult.rows[0].count);
+    // Calculate nextCursor and hasMore for cursor-based pagination
+    let nextCursor = null;
+    let hasMore = false;
+    
+    if (cursor || result.rows.length > 0) {
+      // If using cursor or got results, calculate next cursor
+      if (result.rows.length > 0) {
+        // Use the last item's time as the next cursor
+        // For duplicate timestamps, we need to handle them properly
+        const lastTime = result.rows[result.rows.length - 1].time;
+        // Ensure nextCursor is an ISO string
+        if (lastTime instanceof Date) {
+          nextCursor = lastTime.toISOString();
+        } else if (typeof lastTime === 'string') {
+          // If it's already a string, ensure it's ISO format
+          nextCursor = new Date(lastTime).toISOString();
+        } else {
+          nextCursor = lastTime;
+        }
+        
+        // hasMore: if we got exactly 'limit' items, there might be more
+        hasMore = result.rows.length === limit;
+      }
+    }
 
-    reply.send({
+    // Build response
+    let response = {
       data: result.rows,
-      total: totalCount,
-    });
+      hasMore: hasMore,
+    };
+
+    if (cursor) {
+      // Cursor-based: include nextCursor
+      response.nextCursor = nextCursor;
+    } else {
+      // Initial load or offset-based: include both nextCursor and total
+      if (nextCursor) {
+        response.nextCursor = nextCursor;
+      }
+      // Include total for backward compatibility
+      const countQuery = `SELECT COUNT(*) FROM public.liquidations ${whereClause}`;
+      const countParams = exchanges && exchanges.length > 0 
+        ? [coin, exchanges] 
+        : [coin];
+      const countResult = await pool.query(countQuery, countParams);
+      const totalCount = parseInt(countResult.rows[0].count);
+      response.total = totalCount;
+    }
+
+    reply.send(response);
   } catch (err) {
     server.log.error('API Error:', err.message);
     reply.status(500).send({ error: 'Failed to fetch data from database.' });
