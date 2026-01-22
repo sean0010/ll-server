@@ -42,6 +42,7 @@ function connect(cb) {
         if (isTargetCoin(o.s)) {
           cb({
             ...o,
+            p: o.ap, // average price
             S: o.S === 'BUY',
             ex: 'BINANCE',
           }); 
