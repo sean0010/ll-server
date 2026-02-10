@@ -23,7 +23,19 @@ pool.on('error', (err) => {
   process.exit(1); 
 });
 
-server.register(cors);
+server.register(cors, {
+  origin: [
+    "https://liquidationlog.com",
+    "https://www.liquidationlog.com",
+    "https://api.liquidationlog.com",
+    /^https:\/\/.*\.liquidationlog\.com$/, // 서브도메인
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  credentials: true,
+});
 server.register(websocket);
 
 function extractCoin(symbol) {
