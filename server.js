@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const connectBinance = require('./exchanges/binance');
 const connectBybit = require('./exchanges/bybit');
 const connectBitmex = require('./exchanges/bitmex');
+const connectOkx = require('./exchanges/okx');
 
 const server = fastify({ logger: true });
 
@@ -260,6 +261,7 @@ const start = async () => {
     connectBinance(handleLiquidationData);
     connectBybit(handleLiquidationData);
     connectBitmex(handleLiquidationData);
+    connectOkx(handleLiquidationData);
   } catch (err) {
     console.error(err);
     process.exit(1);
