@@ -65,27 +65,21 @@ async function handleLiquidationData(o) {
   const quantity = o.q;
   const time = new Date(o.T).toISOString();
   const coin = extractCoin(symbol);
-  
-  const query = `
-    INSERT INTO public.liquidations (exchange, coin, symbol, side, price, quantity, time)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (exchange, symbol, side, price, quantity, time) DO NOTHING
-  `;
-  const values = [exchange, coin, symbol, side, price, quantity, time];
 
-  try {
-    await pool.query(query, values);
-  } catch (err) {
-    server.log.error('Error saving liquidation to DB:', err.message);
-  }
-
-  // WebSocket broadcast
   const message = JSON.stringify(o);
   server.websocketServer.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
     }
   });
+
+  const query = `
+    INSERT INTO public.liquidations (exchange, coin, symbol, side, price, quantity, time)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (exchange, symbol, side, price, quantity, time) DO NOTHING
+  `;
+  const values = [exchange, coin, symbol, side, price, quantity, time];
+  pool.query(query, values).catch((err) => server.log.error('Error saving liquidation to DB:', err.message));
 }
 
 server.get('/api/v1/liquidations', async (req, reply) => {
