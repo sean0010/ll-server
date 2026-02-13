@@ -9,6 +9,7 @@ const connectBinance = require('./exchanges/binance');
 const connectBybit = require('./exchanges/bybit');
 const connectBitmex = require('./exchanges/bitmex');
 const connectOkx = require('./exchanges/okx');
+const connectBitfinex = require('./exchanges/bitfinex');
 
 const server = fastify({ logger: true });
 
@@ -261,6 +262,7 @@ const start = async () => {
     connectBybit(handleLiquidationData);
     connectBitmex(handleLiquidationData);
     connectOkx(handleLiquidationData);
+    connectBitfinex(handleLiquidationData);
   } catch (err) {
     console.error(err);
     process.exit(1);
