@@ -52,22 +52,26 @@ function connect(cb) {
       if (msg.arg?.channel === 'liquidation-orders' && Array.isArray(msg.data)) {
         msg.data.forEach((item) => {
           if (!isTargetCoin(item.instId)) return;
-
           const instId = item.instId || '';
-          const side = (item.side || '').toLowerCase();
-          const px = parseFloat(item.px);
-          const sz = parseFloat(item.sz);
-          const ts = item.ts ? parseInt(item.ts, 10) : Date.now();
+          const details = Array.isArray(item.details) ? item.details : [];
 
-          const o = {
-            s: normalizeSymbol(instId) || instId,
-            S: side === 'buy',
-            p: px,
-            q: sz,
-            T: ts,
-            ex: 'OKX',
-          };
-          cb(o);
+          details.forEach((d) => {
+            const px = parseFloat(d.bkPx);
+            const sz = parseFloat(d.sz);
+            if (Number.isNaN(px) || Number.isNaN(sz) || sz <= 0) return;
+            const side = (d.side || '').toLowerCase();
+            const ts = d.ts ? parseInt(d.ts, 10) : Date.now();
+
+            const o = {
+              s: normalizeSymbol(instId) || instId,
+              S: side === 'buy',
+              p: px,
+              q: sz,
+              T: ts,
+              ex: 'OKX',
+            };
+            cb(o);
+          });
         });
       }
     } catch (error) {

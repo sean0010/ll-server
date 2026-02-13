@@ -30,8 +30,7 @@ server.register(cors, {
     "https://www.liquidationlog.com",
     "https://api.liquidationlog.com",
     /^https:\/\/.*\.liquidationlog\.com$/, // 서브도메인
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://localhost:4000",
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization", "Accept"],
